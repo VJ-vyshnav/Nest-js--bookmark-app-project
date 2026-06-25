@@ -3,31 +3,32 @@ import { PrismaClient } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
-
-// Force load .env from the root directory immediately
-dotenv.config({ path: path.join(__dirname, '../../../.env') });
 
 @Injectable()
 export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  constructor(private config: ConfigService) {
-    // Priority 1: ConfigService | Priority 2: Direct process.env | Priority 3: Explicit Hardcoded Fallback
+  // Declare the property explicitly without initializing it in the parameter list
+  private configService: ConfigService;
+
+  constructor(config: ConfigService) {
+    // 1. Grab the URL from the parameter directly (bypasses the 'this' restriction)
     const dbUrl =
-      config.get<string>('DATABASE_URL') ||
-      process.env.DATABASE_URL ||
-      'postgresql://postgres:123@localhost:5434/nest?schema=public';
+      config.get<string>('DATABASE_URL') || process.env.DATABASE_URL;
 
-    const pool = new Pool({
-      connectionString: dbUrl,
-    });
+    if (!dbUrl) {
+      throw new Error('DATABASE_URL is missing from configuration.');
+    }
 
+    const pool = new Pool({ connectionString: dbUrl });
     const adapter = new PrismaPg(pool);
 
+    // 2. Call super first
     super({ adapter });
+
+    // 3. Now it is perfectly safe to use 'this'
+    this.configService = config;
   }
 
   async onModuleInit() {
