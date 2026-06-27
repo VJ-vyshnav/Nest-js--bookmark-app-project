@@ -1,9 +1,10 @@
-import { PassportStrategy } from '@nestjs/passport';
-import { Strategy, ExtractJwt } from 'passport-jwt';
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { PrismaService } from '../../prisma/prisma.service'; // Ensure this path matches your folder structure
 
-// 1. Define an interface for the payload to satisfy ESLint
+// 1. Defined interface
 interface JwtPayload {
   sub: number;
   email: string;
@@ -11,8 +12,10 @@ interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  // 1. Specify the strategy name as 'jwt' it will be used in the auth gaurd and default will be jwt and no need to specify it in the auth guard
-  constructor(config: ConfigService) {
+  constructor(
+    config: ConfigService,
+    private prisma: PrismaService, // if no prisma service then no this.prisma
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -20,12 +23,21 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  // 2. Use JwtPayload instead of any.
-  // 3. Since there's no DB lookup yet, return a Promise directly to satisfy 'require-await'
-  validate(payload: JwtPayload): Promise<{ userId: number; email: string }> {
-    return Promise.resolve({
-      userId: payload.sub,
-      email: payload.email,
+  async validate(payload: JwtPayload) {
+    //now await works smooth like butttaaar!!!
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: payload.sub,
+      },
     });
+
+    if (!user) {
+      throw new UnauthorizedException('User no longer exists');
+    }
+
+    const { hash: _hash, ...userWithoutHash } = user; // this mf again all that shi just to write user.hash
+
+    // Whatever is returned here is automatically attached to the Request object as req.user.thats fking awesome!!
+    return userWithoutHash;
   }
 }

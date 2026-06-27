@@ -7,7 +7,6 @@ export class UserController {
   @UseGuards(AuthGuard('jwt'))
   @Get('me')
   getMe(@Req() req: Request) {
-    console.log({ 'who tf is this guy?': req.user });
-    return 'who tf is this guy?';
+    return req.user; // This will return the user object attached to the request by the JwtStrategy
   }
 }
